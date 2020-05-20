@@ -349,7 +349,7 @@ const halt = (object, currentV) => {
   if (!IsDejkstraDone(object)) {
     const { obj, current } = Dejkstra(object, currentV);
     curr = current;
-    ctx.clearRect(0, 0, 620, 600);
+    ctx.clearRect(0, 0, 650, 600);
     const newWay = [];
     for (let i = current; i; i = obj[i].ancestor) { //find way
       newWay.unshift(i);
