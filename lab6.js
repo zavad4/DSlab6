@@ -279,31 +279,31 @@ drawDoubleCons(grafinfo);
 drawVertex(grafinfo);
 drawWeigths(W, grafinfo);
 
-const DejkObj = {}
-const STARTY = 1;
-const infinity = Math.pow(10, 200);
+const DejkObj = {};
+const START_VERT = 1;
+const inf = Math.pow(10, 200);
 
 for(let i = 1; i <= A.length; i++) {
   DejkObj[i] = {
-    dist: i === STARTY ? 0 : infinity,
-    cond: i === STARTY ? 'P' : 'T',
-    ancestor: undefined
+    dist: i === START_VERT ? 0 : inf,
+    mark: i === START_VERT ? 'P' : 'T',
+    prev: undefined
   }
 }
 
 const GetAdjacentLenghts = (obj, curr) => {
   W[curr - 1].forEach((weight, v) => {
-    if(obj[v + 1].cond === 'T' && weight && weight + obj[curr].dist < obj[v + 1].dist)  {
+    if(obj[v + 1].mark === 'T' && weight && weight + obj[curr].dist < obj[v + 1].dist)  {
       obj[v + 1].dist = weight + obj[curr].dist;
-      obj[v + 1].ancestor = curr;
+      obj[v + 1].prev = curr;
     } 
   })
 }
 
-const FindMinLength = obj => {
+const GetMinLength = obj => {
   const weights = [];
   for(let v in obj) {
-    if(obj[v].cond === 'T') {
+    if(obj[v].mark === 'T') {
       const distObj = {};
       distObj.v = +v;
       distObj.dist = obj[v].dist;
@@ -317,98 +317,163 @@ const FindMinLength = obj => {
 const IsDejkstraDone = obj => {
   let done = true;
   for(let v in obj) {
-    if(obj[v].cond === 'T') done = false;
+    if(obj[v].mark === 'T') done = false;
   }
   return done;
 } 
 
+const lengthsArray = [];
+const doneArray = [START_VERT];
+let usingBorders = [];
 
-let counter = 0;
-const Dejkstra = (obj, current = STARTY) => {
-  ctx.font = '22px Times new Roman';
-  ctx.strokeStyle = 'black';
-  ctx.fillText('Pathes', 1020, 160);
-  counter++;
-  GetAdjacentLenghts(obj, current);
-  const min = FindMinLength(obj);
-  obj[min.v].cond = 'P';
-  const newWay = [];
-  for (let i = min.v; i; i = obj[i].ancestor) {
-    newWay.unshift(i);
-  }
-  ctx.font = '22px Times new Roman';
-  ctx.strokeStyle = 'black';
-  ctx.fillText(newWay, 1020, 160 + counter * 25);
-  console.log(min.v, newWay);
-  return { obj, current: min.v };
-};
-
-let curr = STARTY;
-
-const halt = (object, currentV) => {
-  if (!IsDejkstraDone(object)) {
-    const { obj, current } = Dejkstra(object, currentV);
-    curr = current;
-    ctx.clearRect(0, 0, 650, 600);
-    const newWay = [];
-    for (let i = current; i; i = obj[i].ancestor) { //find way
-      newWay.unshift(i);
-    }
-    drawDoubleCons(grafinfo);
-    ctx.strokeStyle = 'YellowGreen';
-    ctx.lineWidth = 3;
-    newWay.forEach((v, i, arr) => {
-      if (arr[i + 1]) {
-        const from = grafinfo[`vert${v}`];
-        const to = grafinfo[`vert${arr[i + 1]}`];
-        if (Math.abs(from.num - to.num) === 1 || Math.abs(from.num - to.num) === (Object.keys(grafinfo).length - 1)) {
-          ctx.beginPath();
-          ctx.moveTo(from.coords[0], from.coords[1]);
-          ctx.lineTo(to.coords[0], to.coords[1]);
-          ctx.stroke();
-        } else {
-          ctx.beginPath();
-          if (from.num < to.num) {
-            const { dx, dy } = doubleAdditionalDots(from.coords[0], from.coords[1], to.coords[0], to.coords[1]);
-            let newX = (from.coords[0] + to.coords[0]) / 2;
-            let newY = (from.coords[1] + to.coords[1]) / 2;
-            newX += dx;
-            newY -= dy;
-            ctx.moveTo(from.coords[0], from.coords[1]);
-            ctx.lineTo(newX, newY);
-            ctx.lineTo(to.coords[0], to.coords[1]);
-            ctx.stroke();
-          } else {
-            const { dx, dy } = doubleAdditionalDots(to.coords[0], to.coords[1], from.coords[0], from.coords[1],);
-            let newX = (from.coords[0] + to.coords[0]) / 2;
-            let newY = (from.coords[1] + to.coords[1]) / 2;
-            newX += dx;
-            newY -= dy;
-            ctx.moveTo(to.coords[0], to.coords[1]);
-            ctx.lineTo(newX, newY);
-            ctx.lineTo(from.coords[0], from.coords[1]);
-            ctx.stroke();
+const Dejkstra = (obj, current = START_VERT) => {
+  for(let i = 0; i < A.length; i++) { //GetAdjacentLenghts(obj, current);
+    const weight = W[current - 1][i];
+    const v = i + 1;
+    if(weight) {
+      if(obj[v].mark === 'T')  {
+        if(weight + obj[current].dist < obj[v].dist) {
+          if(obj[v].prev) {
+            usingBorders = usingBorders.filter(x => JSON.stringify(x) !== JSON.stringify([obj[v].prev, v]))
           }
+          obj[v].dist = weight + obj[current].dist;
+          obj[v].prev = current;
+          usingBorders.push([current, v])
+        }
+        lengthsArray.push([current, v, fullCopy(doneArray), fullCopy(usingBorders), fullCopy(obj)])
+      } 
+    }
+  }
+  const min = GetMinLength(obj);
+  obj[min.v].mark = 'P';
+  doneArray.push(min.v)
+
+  if(!IsDejkstraDone(obj)) Dejkstra(obj, min.v)
+}
+
+Dejkstra(DejkObj);
+
+let curr = START_VERT;
+
+const iterDejk = lengthsArray[Symbol.iterator]()
+
+const halt = () => {
+  const {value, done} = iterDejk.next();
+  if(!done) {
+    ctx.clearRect(0, 0, 700, 700);
+    const current = value[0],
+    to = value[1],
+    doneArray = value[2],
+    usingArray = value[3],
+    obj = value[4];
+    ctx.beginPath();
+    console.log(current, to);
+    const keyCurr = 'vert' + current;
+    const keyTo = 'vert' + to;
+    ctx.strokeStyle = 'YellowGreen';
+    drawDoubleCons(grafinfo);
+    // for(const key in grafinfo) { //drawSoloArrows
+    //   for(let i = 0; i < grafinfo[key].doublecon.length; i++) {
+    //     ctx.beginPath();
+    //     ctx.moveTo(grafinfo[key].coords[0], grafinfo[key].y);
+    //     ctx.lineTo(grafinfo[grafinfo[key].doublecon[i]].coords[0], grafinfo[grafinfo[key].doublecon[i]].coords[1]);
+    //     ctx.stroke();
+    //   }
+    // }
+    ctx.strokeStyle = 'black';
+    drawWeigths(W, grafinfo)
+    drawLoops(loops, grafinfo,75, 100);
+    ctx.lineWidth = 2;
+    usingArray.forEach((arr) => { //ребра которые используются в мин. путях
+      ctx.beginPath();
+      const fromV = arr[0],
+      toV = arr[1];
+      ctx.strokeStyle = 'yellow';
+      ctx.moveTo(grafinfo['vert' + fromV].coords[0], grafinfo['vert' + fromV].coords[1]);
+      ctx.lineTo(grafinfo['vert' + toV].coords[0], grafinfo['vert' + toV].coords[1]);
+      ctx.stroke();
+    })
+    ctx.lineWidth = 1;
+    { //данная вершина
+      if (obj[key].num <= obj[`${obj[key].doublecon[i]}`].num) {
+        const fromX = grafinfo[keyCurr].coords[0];
+        const fromY = grafinfo[keyCurr].coords[1];
+        const toX = grafinfo[keyTo].coords[0];
+        const toY = grafinfo[keyTo].coords[1];
+        if (Math.abs(grafinfo[keyCurr].num - grafinfo[`${obj[keyTo].doublecon[i]}`].num) === 1 || Math.abs(grafinfo[keyCurr].num - grafinfo[`${obj[keyTo].doublecon[i]}`].num) === (Object.keys(grafinfo).length - 1)) {
+          ctx.beginPath();
+          ctx.moveTo(fromX, fromY);
+          ctx.lineTo(toX, toY);
+          ctx.stroke();
+          ctx.strokeStyle = 'black';
+          ctx.lineWidth = 1;
+        } 
+        else {
+          const { dx, dy } = doubleAdditionalDots(fromX, fromY, toX, toY);
+          let newX = (fromX + toX) / 2;
+          let newY = (fromY + toY) / 2;
+          newX += dx;
+          newY -= dy;
+          ctx.beginPath();
+          ctx.moveTo(fromX, fromY);
+          ctx.lineTo(newX, newY);
+          ctx.lineTo(toX, toY);
+          ctx.stroke();
         }
       }
-    });
-    ctx.strokeStyle = 'black';
-    for (const v in obj) {
+      }
       ctx.beginPath();
+      ctx.strokeStyle = 'yellow';
       ctx.lineWidth = 3;
-      let color = obj[v].cond === 'T' ? 'MediumPurple' : 'crimson';
-      if (+v === curr) color = 'MediumTurquoise';
-      drawCircle(ctx, grafinfo[`vert${v}`].coords[0], grafinfo[`vert${v}`].coords[1], r, color, 'black');
+      ctx.moveTo(grafinfo[keyCurr].coords[0], grafinfo[keyCurr].coords[1]);
+      ctx.lineTo(grafinfo[keyTo].coords[0], grafinfo[keyTo].coords[1]);
+      ctx.stroke();
+      ctx.strokeStyle = 'black';
+      ctx.lineWidth = 1;
+    }
+    for(let i = 1; i <= A.length; i++) { //draw vertics
+      ctx.beginPath();
+      let color = doneArray.includes(i) ? '#3498DB' : '#E74C3C';
+      if(current === i) color = '#48C9B0'
+      drawCircle(ctx, grafinfo[`vert${i}`].coords[0], grafinfo[`vert${i}`].coords[1], r, color, 'black')
+    }
+    for(const v in obj) { 
+      //draw vertics
+      ctx.beginPath()
       //draw text
       ctx.lineWidth = 1;
-      ctx.font = '12px Arial';
-      ctx.fillStyle = 'black';
-      //ctx.strokeStyle = 'white';
+      ctx.font = '20px Arial';
+      ctx.fillStyle = 'white';
+      ctx.strokeStyle = 'black';
       ctx.textBaseline = 'middle';
       ctx.textAlign = 'center';
-      ctx.strokeText(`${v}(${obj[v].dist === infinity ? '∞' : obj[v].dist})`, grafinfo[`vert${v}`].coords[0], grafinfo[`vert${v}`].coords[1]);
-      ctx.fillText(`${v}(${obj[v].dist === infinity ? '∞' : obj[v].dist})`, grafinfo[`vert${v}`].coords[0], grafinfo[`vert${v}`].coords[1]);
+      ctx.strokeText(`${v}(${obj[v].dist === inf ? '∞' : obj[v].dist})`, grafinfo[`vert${v}`].coords[0], grafinfo[`vert${v}`].coords[1]);
+      ctx.fillText(`${v}(${obj[v].dist === inf ? '∞' : obj[v].dist})`, grafinfo[`vert${v}`].coords[0], grafinfo[`vert${v}`].coords[1]);
     }
-    drawWeigths(W, grafinfo);
   }
-};
+  else {
+    for(let i = 1; i <= A.length; i++) { //draw vertics
+      ctx.beginPath();
+      const color = '#3498DB';
+      drawCircle(ctx, grafinfo[`vert${i}`].coords[0], grafinfo[`vert${i}`].coords[1], radius, color, 'black')
+    }
+    for(const v in DejkObj) { 
+      ctx.beginPath()
+      ctx.lineWidth = 1;
+      ctx.font = '20px Arial';
+      ctx.fillStyle = 'white';
+      ctx.strokeStyle = 'black';
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'center';
+      ctx.strokeText(`${v}(${DejkObj[v].dist === inf ? '∞' : DijkObj[v].dist})`, grafinfo[`vert${v}`].coords[0], grafinfo[`vert${v}`].coords[1]);
+      ctx.fillText(`${v}(${DejkObj[v].dist === inf ? '∞' : DijkObj[v].dist})`, grafinfo[`vert${v}`].coords[0], grafinfo[`vert${v}`].coords[1]);
+      }
+  }
+}
+
+
+
+
+    // ctx.strokeStyle = 'YellowGreen';
+    //   let color = obj[v].cond === 'T' ? 'MediumPurple' : 'crimson';
+    //   if (+v === curr) color = 'MediumTurquoise';
